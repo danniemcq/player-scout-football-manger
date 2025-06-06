@@ -8,36 +8,43 @@ class PlayerAnalyzer:
         self.df = None
         self.processed_df = None
         
-        # Define role importance rankings (1=least important, 5=most important)
+        # Use the role attributes from your filtering selection file
         self.role_attributes = {
-            'GK': {
-                'Kic': 5, 'Thr': 5, 'Pas': 4, 'Han': 5, 'Ref': 5, 'Cmd': 4, 'Com': 4,
-                'Dec': 3, 'Cnt': 4, 'Pos': 4, 'Ant': 3, 'Agi': 4, 'Jum': 3
-            },
-            'DEF': {
-                'Tck': 5, 'Mar': 5, 'Pos': 5, 'Ant': 4, 'Hea': 4, 'Str': 4, 'Jum': 4,
-                'Dec': 4, 'Cnt': 4, 'Bra': 3, 'Pac': 3, 'Sta': 3, 'Pas': 3
-            },
-            'DM': {
-                'Tck': 4, 'Pas': 5, 'Dec': 5, 'Pos': 4, 'Ant': 4, 'Wor': 4, 'Sta': 4,
-                'Tea': 4, 'Cnt': 3, 'Str': 3, 'Bal': 3, 'Tec': 4
-            },
-            'CM': {
-                'Pas': 5, 'Dec': 5, 'Vis': 4, 'Tec': 4, 'Sta': 4, 'Wor': 4, 'Tea': 4,
-                'Fir': 4, 'Cnt': 3, 'Bal': 3, 'Ant': 3, 'OtB': 3
-            },
-            'AM': {
-                'Pas': 5, 'Vis': 5, 'Tec': 5, 'Dec': 4, 'Fir': 4, 'OtB': 4, 'Fla': 4,
-                'Dri': 4, 'Fin': 3, 'Lon': 3, 'Bal': 3, 'Agi': 3
-            },
-            'WM': {
-                'Pas': 4, 'Cro': 5, 'Sta': 5, 'Wor': 5, 'Pac': 4, 'Tec': 4, 'Dec': 3,
-                'Tea': 4, 'Fir': 3, 'Dri': 4, 'Bal': 3, 'Agi': 3
-            },
-            'ST': {
-                'Fin': 5, 'Fir': 5, 'Ant': 4, 'OtB': 4, 'Pac': 4, 'Str': 4, 'Bal': 3,
-                'Tec': 4, 'Dec': 3, 'Pos': 3, 'Jum': 3, 'Hea': 3, 'Dri': 3
-            }
+            'GK': ['Wor', 'Vis', 'Thr', 'Tec', 'Tea'],
+            'DEF': ['Wor', 'Vis', 'Thr'],
+            'DM': ['Wor', 'Thr', 'Tec'],
+            'MF': ['Vis', 'Tec', 'Tea'],
+            'AM': ['Wor', 'Vis', 'Tea'],
+            'ST': ['Wor', 'Thr', 'Tea']
+        }
+        
+        # Extended role names mapping to the base roles
+        self.position_mapping = {
+            'Goalkeeper': 'GK',
+            'Sweeper Keeper': 'GK',
+            'Centre Back': 'DEF',
+            'Ball Playing Defender': 'DEF',
+            'Libero': 'DEF',
+            'Wing Back': 'DEF',
+            'Full Back': 'DEF',
+            'Defensive Midfielder': 'DM',
+            'Anchor Man': 'DM',
+            'Half Back': 'DM',
+            'Central Midfielder': 'MF',
+            'Box to Box Midfielder': 'MF',
+            'Deep Lying Playmaker': 'MF',
+            'Roaming Playmaker': 'MF',
+            'Attacking Midfielder': 'AM',
+            'Advanced Playmaker': 'AM',
+            'Enganche': 'AM',
+            'Winger': 'AM',
+            'Inside Forward': 'AM',
+            'Striker': 'ST',
+            'Advanced Forward': 'ST',
+            'Complete Forward': 'ST',
+            'Target Man': 'ST',
+            'False 9': 'ST',
+            'Pressing Forward': 'ST'
         }
         
         self.setup_gui()
@@ -122,28 +129,30 @@ class PlayerAnalyzer:
             messagebox.showerror("Error", "Please load a file first!")
             return
         
-        selected_role = self.role_var.get()
-        if not selected_role:
-            messagebox.showerror("Error", "Please select a role!")
+        selected_position = self.role_var.get()
+        if not selected_position:
+            messagebox.showerror("Error", "Please select a position!")
             return
         
-        # Get attributes for selected role
-        role_attrs = self.role_attributes.get(selected_role, {})
+        # Map the selected position to base role
+        base_role = self.position_mapping.get(selected_position, selected_position)
+        
+        # Get attributes for the base role
+        role_attrs = self.role_attributes.get(base_role, [])
         
         if not role_attrs:
-            messagebox.showerror("Error", "Invalid role selected!")
+            messagebox.showerror("Error", "Invalid position selected!")
             return
         
-        # Calculate weighted scores for each player
+        # Calculate scores for each player
         result_df = self.processed_df[['Name']].copy()
         
-        # Add individual attribute scores
-        total_weight = 0
-        weighted_sum_min = 0
-        weighted_sum_max = 0
-        weighted_sum_est = 0
+        # Add individual attribute scores and calculate sums
+        sum_min = 0
+        sum_max = 0
+        sum_est = 0
         
-        for attr, importance in role_attrs.items():
+        for attr in role_attrs:
             min_col = f'{attr}_min'
             max_col = f'{attr}_max'
             est_col = f'{attr}_est'
@@ -152,25 +161,22 @@ class PlayerAnalyzer:
                 result_df[f'{attr}_min'] = self.processed_df[min_col]
                 result_df[f'{attr}_max'] = self.processed_df[max_col]
                 result_df[f'{attr}_est'] = self.processed_df[est_col]
-                result_df[f'{attr}_importance'] = importance
                 
-                # Calculate weighted contributions
-                weighted_sum_min += self.processed_df[min_col] * importance
-                weighted_sum_max += self.processed_df[max_col] * importance
-                weighted_sum_est += self.processed_df[est_col] * importance
-                total_weight += importance
+                # Add to sums
+                sum_min += self.processed_df[min_col]
+                sum_max += self.processed_df[max_col]
+                sum_est += self.processed_df[est_col]
         
-        # Calculate overall scores
-        if total_weight > 0:
-            result_df['overall_min'] = weighted_sum_min / total_weight
-            result_df['overall_max'] = weighted_sum_max / total_weight
-            result_df['overall_est'] = weighted_sum_est / total_weight
+        # Add sum columns (like in your original script)
+        result_df['sum_min'] = sum_min
+        result_df['sum_max'] = sum_max
+        result_df['sum_est'] = sum_est
         
-        # Sort by estimated overall score
-        result_df = result_df.sort_values('overall_est', ascending=False)
+        # Sort by estimated sum
+        result_df = result_df.sort_values('sum_est', ascending=False)
         
         # Display results
-        self.display_results(result_df, selected_role)
+        self.display_results(result_df, selected_position)
     
     def display_results(self, dataframe, role):
         """Display analysis results in a new window"""
@@ -271,8 +277,8 @@ class PlayerAnalyzer:
         
         self.role_var = tk.StringVar()
         self.role_dropdown = ttk.Combobox(role_frame, textvariable=self.role_var, 
-                                         values=list(self.role_attributes.keys()),
-                                         state='disabled', width=20)
+                                         values=list(self.position_mapping.keys()),
+                                         state='disabled', width=25)
         self.role_dropdown.pack(pady=5)
         
         # Analyze button
